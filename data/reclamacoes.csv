@@ -1,0 +1,11 @@
+id,data_reclamacao,canal,texto_reclamacao,produto,status
+REC-2026-00142,2026-01-15,SAC,"Já é a terceira vez que ligo pedindo o estorno de uma cobrança no meu cartão que eu não fiz. Ninguém resolve nada. Vou procurar o Banco Central se não resolverem até sexta.",Cartão de Crédito,Aberta
+REC-2026-00143,2026-01-15,Redes Sociais,"Gente que absurdo, meu cartão foi clonado e usaram pra comprar coisa que eu nao reconheço, ja bloquearam mas ninguem me explica nada, isso e uma PORRA de descaso com o cliente.",,Aberta
+REC-2026-00144,2026-01-16,Ouvidoria,"Solicitei o cancelamento da minha conta corrente há duas semanas e continuam cobrando tarifa de manutenção. Já é a segunda vez que entro em contato sobre isso.",Conta Corrente,Em análise
+REC-2026-00145,2026-01-16,Banco Central,"Registrei reclamação no Banco Central sobre taxas de juros do meu empréstimo que nunca foram informadas no contrato. Quero explicação e recálculo das parcelas.",Empréstimo,Aberta
+REC-2026-00146,2026-01-17,SAC,"Queria só entender por que minha fatura do cartão veio maior esse mês, acho que é a anuidade mas não tenho certeza.",Cartão de Crédito,Resolvida
+REC-2026-00147,2026-01-17,Procon,"Estou processando vocês no Procon porque meu resgate de investimento está bloqueado há mais de um mês sem justificativa nenhuma.",Investimentos,Aberta
+REC-2026-00148,2026-01-18,SAC,"O app fica travando toda hora e não consigo fazer pix nenhum, isso já aconteceu diversas vezes essa semana.",,Aberta
+REC-2026-00149,2026-01-18,Redes Sociais,"Atendimento pessimo, fiquei 40 minutos no telefone e ninguem me atende, vou postar isso em todo lugar até resolverem meu seguro negado.",Seguros,Em análise
+REC-2026-00150,2026-01-19,SAC,"Quero elogiar a atendente que me ajudou hoje, resolveu meu problema com o cartão super rápido, excelente atendimento!",Cartão de Crédito,Resolvida
+REC-2026-00151,2026-01-19,Ouvidoria,"Meus dados pessoais foram usados sem autorização para abrir um empréstimo que eu nunca solicitei, isso é gravíssimo e envolve meu CPF 123.456.789-00.",Empréstimo,Aberta
