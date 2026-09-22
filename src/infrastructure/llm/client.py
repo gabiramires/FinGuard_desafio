@@ -13,8 +13,8 @@ T = TypeVar("T", bound=BaseModel)
 _MOCK_MODEL_ID = "mock-heuristics-v1"
 
 _MODELOS_SUGERIDOS = {
-    "anthropic": "claude-sonnet-4-20250514",
-    "bedrock": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "anthropic": "claude-haiku-4-5",
+    "bedrock": "anthropic.claude-haiku-4-5-20251001-v1:0",
 }
 
 

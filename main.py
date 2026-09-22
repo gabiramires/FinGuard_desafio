@@ -29,7 +29,7 @@ def main() -> None:
     parser.add_argument(
         "--model",
         default=None,
-        help="model id do provider (ex.: claude-sonnet-4-20250514). Sobrescreve FINGUARD_LLM_MODEL",
+        help="model id do provider (ex.: claude-haiku-4-5). Sobrescreve FINGUARD_LLM_MODEL",
     )
     parser.add_argument("--benchmark", action="store_true", help="executa como benchmark rastreável em reports/benchmarks/<run_id>/")
     parser.add_argument("--gold", default=None, help="CSV gold para comparação determinística (ex.: data/gold/labels-ai-draft-v2.csv)")
