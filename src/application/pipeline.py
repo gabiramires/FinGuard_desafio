@@ -34,7 +34,7 @@ def criar_contexto(llm: LLMGateway, logger: AgentLogger, pack: DomainPack | None
 
 def rodar_nivel1(ctx: PipelineContext, reclamacoes: list[dict], max_workers: int = 1) -> list[dict]:
     def _processar(reclamacao: dict) -> dict:
-        analise = estruturacao.executar(
+        analise, motivo_bloqueio = estruturacao.executar(
             reclamacao,
             ctx.llm,
             ctx.logger,
@@ -48,6 +48,8 @@ def rodar_nivel1(ctx: PipelineContext, reclamacoes: list[dict], max_workers: int
             "texto_reclamacao": reclamacao["texto_reclamacao"],
             "analise": analise.model_dump(mode="json"),
             "parecer_risco": None,
+            "bloqueado_seguranca": motivo_bloqueio is not None,
+            "motivo_bloqueio": motivo_bloqueio,
         }
 
     return _executar_em_paralelo(reclamacoes, _processar, max_workers, rotulo="nível 1")

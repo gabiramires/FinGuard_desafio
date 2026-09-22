@@ -42,7 +42,7 @@ def executar(
     *,
     prompt: PromptAsset | None = None,
     rag: PoliticaRAG | None = None,
-) -> AnaliseEstruturada:
+) -> tuple[AnaliseEstruturada, str | None]:
     from src.prompts.loader import carregar_pack
 
     prompt = prompt or carregar_pack().prompts["estruturacao"]

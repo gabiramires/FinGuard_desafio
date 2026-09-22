@@ -17,6 +17,8 @@ class EstadoReclamacao(TypedDict):
     analise: Optional[dict]
     parecer_risco: Optional[dict]
     registro_final: Optional[dict]
+    motivo_bloqueio_analise: Optional[str]
+    motivo_bloqueio_risco: Optional[str]
 
 
 class GrafoConfig:
@@ -42,14 +44,14 @@ def construir_grafo(config: GrafoConfig | None = None, llm: LLMGateway | None = 
         config = GrafoConfig(llm=llm, logger=logger)
 
     def no_agente1(estado: EstadoReclamacao) -> dict:
-        analise = estruturacao.executar(
+        analise, motivo_bloqueio = estruturacao.executar(
             estado["reclamacao"],
             config.llm,
             config.logger,
             prompt=config.prompt_estruturacao,
             rag=config.rag,
         )
-        return {"analise": analise.model_dump(mode="json")}
+        return {"analise": analise.model_dump(mode="json"), "motivo_bloqueio_analise": motivo_bloqueio}
 
     def rotear_risco(estado: EstadoReclamacao) -> str:
         canal = estado["reclamacao"].get("canal", "")
@@ -58,11 +60,11 @@ def construir_grafo(config: GrafoConfig | None = None, llm: LLMGateway | None = 
     def no_risco_expresso(estado: EstadoReclamacao) -> dict:
         analise = AnaliseEstruturada.model_validate(estado["analise"])
         parecer = risco.executar_expresso(estado["reclamacao"], analise, config.logger, rag=config.rag)
-        return {"parecer_risco": parecer.model_dump(mode="json")}
+        return {"parecer_risco": parecer.model_dump(mode="json"), "motivo_bloqueio_risco": None}
 
     def no_risco_completo(estado: EstadoReclamacao) -> dict:
         analise = AnaliseEstruturada.model_validate(estado["analise"])
-        parecer = risco.executar_completo(
+        parecer, motivo_bloqueio = risco.executar_completo(
             estado["reclamacao"],
             analise,
             config.llm,
@@ -70,12 +72,19 @@ def construir_grafo(config: GrafoConfig | None = None, llm: LLMGateway | None = 
             prompt=config.prompt_risco,
             rag=config.rag,
         )
-        return {"parecer_risco": parecer.model_dump(mode="json")}
+        return {"parecer_risco": parecer.model_dump(mode="json"), "motivo_bloqueio_risco": motivo_bloqueio}
 
     def no_agente3(estado: EstadoReclamacao) -> dict:
         analise = AnaliseEstruturada.model_validate(estado["analise"])
         parecer = ParecerRisco.model_validate(estado["parecer_risco"])
-        registro = consolidacao.executar(estado["reclamacao"], analise, parecer, config.logger)
+        registro = consolidacao.executar(
+            estado["reclamacao"],
+            analise,
+            parecer,
+            config.logger,
+            motivo_bloqueio_analise=estado.get("motivo_bloqueio_analise"),
+            motivo_bloqueio_risco=estado.get("motivo_bloqueio_risco"),
+        )
         return {"registro_final": registro.model_dump(mode="json")}
 
     grafo = StateGraph(EstadoReclamacao)
@@ -99,6 +108,13 @@ def construir_grafo(config: GrafoConfig | None = None, llm: LLMGateway | None = 
 
 def processar_reclamacao(app, reclamacao: dict) -> dict:
     estado_final = app.invoke(
-        {"reclamacao": reclamacao, "analise": None, "parecer_risco": None, "registro_final": None}
+        {
+            "reclamacao": reclamacao,
+            "analise": None,
+            "parecer_risco": None,
+            "registro_final": None,
+            "motivo_bloqueio_analise": None,
+            "motivo_bloqueio_risco": None,
+        }
     )
     return estado_final["registro_final"]

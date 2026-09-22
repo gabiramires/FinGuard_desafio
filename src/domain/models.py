@@ -39,3 +39,5 @@ class RegistroReclamacao(BaseModel):
     texto_reclamacao: str
     analise: AnaliseEstruturada
     parecer_risco: ParecerRisco | None = None
+    bloqueado_seguranca: bool = False
+    motivo_bloqueio: str | None = None

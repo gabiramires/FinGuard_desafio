@@ -3,7 +3,7 @@
 import os
 from typing import Type, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from .json_schema import schema_para_tool
 from .mock import gerar_estruturado as mock_gerar
@@ -11,13 +11,35 @@ from .mock import gerar_estruturado as mock_gerar
 T = TypeVar("T", bound=BaseModel)
 
 
-class ConteudoBloqueadoError(RuntimeError):
-    """Gateway recusou gerar a tool call (moderação/guardrail), em vez de erro de integração."""
+class RespostaAgenteInvalidaError(RuntimeError):
+    """Base: o provider não devolveu uma saída estruturada válida para o schema pedido."""
 
     def __init__(self, motivo: str, detalhe: str | None = None):
         self.motivo = motivo
         self.detalhe = detalhe
-        super().__init__(f"Gateway bloqueou a resposta (finish_reason={motivo}): {detalhe or ''}".strip())
+        super().__init__(f"{motivo}: {detalhe or ''}".strip())
+
+
+class ConteudoBloqueadoError(RespostaAgenteInvalidaError):
+    """Gateway recusou gerar a tool call (moderação/guardrail), em vez de erro de integração."""
+
+
+class RespostaInvalidaError(RespostaAgenteInvalidaError):
+    """Modelo devolveu uma tool call cujos argumentos não validam contra o schema esperado
+    (payload corrompido/mal formatado) — visto em respostas via gateway/Bedrock."""
+
+    def __init__(self, detalhe: str):
+        super().__init__("schema_invalido", detalhe)
+
+
+def _validar_schema(schema: Type[T], dados: dict) -> T:
+    try:
+        return schema.model_validate(dados)
+    except ValidationError as exc:
+        resumo = "; ".join(
+            f"{'.'.join(str(p) for p in erro['loc'])}: {erro['msg']}" for erro in exc.errors()
+        )
+        raise RespostaInvalidaError(resumo) from exc
 
 
 _MOCK_MODEL_ID = "mock-heuristics-v1"
@@ -95,7 +117,7 @@ class LLMGateway:
             )
             for bloco in resposta.content:
                 if bloco.type == "tool_use":
-                    return schema.model_validate(bloco.input)
+                    return _validar_schema(schema, bloco.input)
             raise RuntimeError("Resposta da Anthropic não trouxe tool_use.")
 
         if self.provider == "bedrock":
@@ -118,7 +140,7 @@ class LLMGateway:
             )
             for bloco in resposta["output"]["message"]["content"]:
                 if "toolUse" in bloco:
-                    return schema.model_validate(bloco["toolUse"]["input"])
+                    return _validar_schema(schema, bloco["toolUse"]["input"])
             raise RuntimeError("Resposta do Bedrock não trouxe toolUse.")
 
         if self.provider == "litellm":
@@ -146,6 +168,10 @@ class LLMGateway:
             chamadas = escolha.message.tool_calls
             if not chamadas:
                 raise ConteudoBloqueadoError(escolha.finish_reason or "desconhecido", escolha.message.content)
-            return schema.model_validate(_json.loads(chamadas[0].function.arguments))
+            try:
+                argumentos = _json.loads(chamadas[0].function.arguments)
+            except _json.JSONDecodeError as exc:
+                raise RespostaInvalidaError(f"JSON malformado: {exc}") from exc
+            return _validar_schema(schema, argumentos)
 
         raise ValueError(f"Provider não suportado: {self.provider!r}")

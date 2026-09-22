@@ -13,8 +13,17 @@ def executar(
     analise: AnaliseEstruturada,
     parecer_risco: ParecerRisco | None,
     logger: AgentLogger,
+    *,
+    motivo_bloqueio_analise: str | None = None,
+    motivo_bloqueio_risco: str | None = None,
 ) -> RegistroReclamacao:
     inicio = time.perf_counter()
+
+    motivos = []
+    if motivo_bloqueio_analise:
+        motivos.append(f"estruturação: {motivo_bloqueio_analise}")
+    if motivo_bloqueio_risco and motivo_bloqueio_risco != motivo_bloqueio_analise:
+        motivos.append(f"risco: {motivo_bloqueio_risco}")
 
     registro = RegistroReclamacao(
         id=reclamacao["id"],
@@ -23,6 +32,8 @@ def executar(
         texto_reclamacao=reclamacao["texto_reclamacao"],
         analise=analise,
         parecer_risco=parecer_risco,
+        bloqueado_seguranca=bool(motivos),
+        motivo_bloqueio=" | ".join(motivos) or None,
     )
 
     duracao_ms = (time.perf_counter() - inicio) * 1000

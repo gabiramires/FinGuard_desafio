@@ -43,7 +43,7 @@ def executar_completo(
     *,
     prompt: PromptAsset | None = None,
     rag: PoliticaRAG | None = None,
-) -> ParecerRisco:
+) -> tuple[ParecerRisco, str | None]:
     from src.prompts.loader import carregar_pack
 
     prompt = prompt or carregar_pack().prompts["risco"]

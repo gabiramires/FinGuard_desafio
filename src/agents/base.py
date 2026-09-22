@@ -7,38 +7,48 @@ from pydantic import BaseModel
 
 from src.domain.enums import Categoria, NivelRisco, Produto, Sentimento, Urgencia
 from src.domain.models import AnaliseEstruturada, ParecerRisco
-from src.infrastructure.llm.client import ConteudoBloqueadoError, LLMGateway
+from src.infrastructure.llm.client import (
+    ConteudoBloqueadoError,
+    LLMGateway,
+    RespostaAgenteInvalidaError,
+)
 from src.infrastructure.logging.agent_logger import AgentLogger
 from src.prompts.loader import PromptAsset
 
 
-def _resultado_bloqueado(schema: Type[BaseModel], bloqueio: ConteudoBloqueadoError) -> BaseModel:
-    """Fallback seguro quando o gateway recusa gerar a resposta (moderação/guardrail).
+def _resultado_bloqueado(schema: Type[BaseModel], bloqueio: RespostaAgenteInvalidaError) -> BaseModel:
+    """Fallback seguro quando a chamada ao LLM não produz uma saída estruturada válida.
 
-    Comum em reclamações que na verdade são tentativas de prompt injection —
-    o dataset oficial do desafio contém casos assim de propósito.
+    Dois motivos possíveis: (1) o gateway recusou gerar a tool call — moderação/guardrail,
+    comum em reclamações que na verdade são tentativas de prompt injection (o dataset oficial
+    do desafio contém casos assim de propósito); ou (2) o modelo devolveu um payload que não
+    valida contra o schema (erro técnico do provider, não necessariamente um ataque).
     """
+    suspeita_ataque = isinstance(bloqueio, ConteudoBloqueadoError)
+
     if schema is AnaliseEstruturada:
         return AnaliseEstruturada(
-            categoria=Categoria.FRAUDE_SEGURANCA,
+            categoria=Categoria.FRAUDE_SEGURANCA if suspeita_ataque else Categoria.OUTROS,
             produto=Produto.NAO_IDENTIFICADO,
-            sentimento=Sentimento.CRITICO,
-            urgencia=Urgencia.CRITICA,
+            sentimento=Sentimento.CRITICO if suspeita_ataque else Sentimento.NEUTRO,
+            urgencia=Urgencia.CRITICA if suspeita_ataque else Urgencia.ALTA,
             resumo=(
-                f"Conteúdo bloqueado pelo gateway de IA ({bloqueio.motivo}) — possível tentativa de "
-                "manipulação do modelo. Não classificado automaticamente; requer revisão manual."
+                f"Não foi possível gerar a análise automática ({bloqueio.motivo}) — "
+                f"{'possível tentativa de manipulação do modelo' if suspeita_ataque else 'resposta do modelo inválida/mal formatada'}. "
+                "Não classificado automaticamente; requer revisão manual."
             ),
         )
     if schema is ParecerRisco:
         return ParecerRisco(
-            nivel_risco=NivelRisco.CRITICO,
+            nivel_risco=NivelRisco.CRITICO if suspeita_ataque else NivelRisco.ALTO,
             justificativa=(
-                f"Gateway de IA bloqueou a geração da análise ({bloqueio.motivo}) — possível tentativa "
-                "de manipulação do modelo. Escalar para revisão manual."
+                f"Não foi possível gerar o parecer de risco ({bloqueio.motivo}) — "
+                f"{'possível tentativa de manipulação do modelo' if suspeita_ataque else 'resposta do modelo inválida/mal formatada'}. "
+                "Escalar para revisão manual."
             ),
-            indicios_fraude=True,
+            indicios_fraude=suspeita_ataque,
             indicios_violacao_regulatoria=False,
-            risco_reputacional=False,
+            risco_reputacional=suspeita_ataque,
             necessita_escalacao_imediata=True,
         )
     raise bloqueio
@@ -56,7 +66,7 @@ class StructuredAgent(Protocol):
     agent_id: str
     prompt: PromptAsset
 
-    def executar(self, reclamacao: dict, logger: AgentLogger) -> BaseModel: ...
+    def executar(self, reclamacao: dict, logger: AgentLogger) -> tuple[BaseModel, str | None]: ...
 
 
 @dataclass
@@ -80,7 +90,7 @@ class LLMStructuredAgent:
             **extras,
         }
 
-    def executar(self, reclamacao: dict, logger: AgentLogger, **variaveis_extras: Any) -> BaseModel:
+    def executar(self, reclamacao: dict, logger: AgentLogger, **variaveis_extras: Any) -> tuple[BaseModel, str | None]:
         import time
 
         inicio = time.perf_counter()
@@ -106,10 +116,12 @@ class LLMStructuredAgent:
         )
         system, user = self.prompt.render(**variaveis)
         schema: Type[BaseModel] = self.prompt.output_model
+        motivo_bloqueio: str | None = None
         try:
             resultado = self.llm.gerar_estruturado(system, user, schema)
-        except ConteudoBloqueadoError as bloqueio:
+        except RespostaAgenteInvalidaError as bloqueio:
             print(f"[aviso] {reclamacao['id']}: {bloqueio} — usando fallback para revisão manual")
+            motivo_bloqueio = f"{bloqueio.motivo}: {bloqueio.detalhe or 'sem detalhe'}"
             resultado = _resultado_bloqueado(schema, bloqueio)
 
         if self.pos_processar:
@@ -125,4 +137,4 @@ class LLMStructuredAgent:
             prompt_version=self.prompt.version,
             output_model=self.prompt.output_model_name,
         )
-        return resultado
+        return resultado, motivo_bloqueio

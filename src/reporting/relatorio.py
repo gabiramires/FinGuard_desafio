@@ -1,6 +1,7 @@
 """Dashboard e exportadores de relatório."""
 
 import csv
+import html
 import json
 from collections import Counter
 from pathlib import Path
@@ -29,6 +30,8 @@ def montar_dashboard(registros: list[dict]) -> dict:
     ]
     criticas.sort(key=lambda r: ordem_risco.get(r["parecer_risco"]["nivel_risco"], 9))
 
+    bloqueadas = [r for r in registros if r.get("bloqueado_seguranca")]
+
     return {
         "total_processado": total,
         "distribuicao_categoria": dict(contagem_categoria),
@@ -37,15 +40,25 @@ def montar_dashboard(registros: list[dict]) -> dict:
         "distribuicao_sentimento": dict(contagem_sentimento),
         "distribuicao_risco": dict(contagem_risco),
         "reclamacoes_criticas": criticas,
-        "recomendacoes": gerar_recomendacoes(total, contagem_categoria, contagem_risco),
+        "reclamacoes_bloqueadas": bloqueadas,
+        "recomendacoes": gerar_recomendacoes(total, contagem_categoria, contagem_risco, len(bloqueadas)),
     }
 
 
-def gerar_recomendacoes(total: int, contagem_categoria: Counter, contagem_risco: Counter) -> list[str]:
+def gerar_recomendacoes(
+    total: int, contagem_categoria: Counter, contagem_risco: Counter, total_bloqueadas: int = 0
+) -> list[str]:
     if total == 0:
         return ["Nenhuma reclamação processada neste lote."]
 
     recomendacoes = []
+    if total_bloqueadas:
+        recomendacoes.append(
+            f"{total_bloqueadas} reclamação(ões) bloqueada(s) pelo gateway de IA (possível tentativa de "
+            "prompt injection/manipulação do modelo) — não classificadas automaticamente, requerem "
+            "revisão manual imediata (ver seção 'Reclamações bloqueadas por segurança')."
+        )
+
     pct_fraude = contagem_categoria.get("Fraude/Segurança", 0) / total
     if pct_fraude >= 0.15:
         recomendacoes.append(
@@ -103,6 +116,7 @@ def exportar_csv(registros: list[dict], caminho: str) -> None:
     campos = [
         "id", "canal", "categoria", "produto", "sentimento", "urgencia",
         "resumo", "nivel_risco", "necessita_escalacao_imediata",
+        "bloqueado_seguranca", "motivo_bloqueio",
     ]
     with destino.open("w", newline="", encoding="utf-8") as arquivo:
         writer = csv.DictWriter(arquivo, fieldnames=campos)
@@ -119,6 +133,8 @@ def exportar_csv(registros: list[dict], caminho: str) -> None:
                 "resumo": registro["analise"]["resumo"],
                 "nivel_risco": parecer.get("nivel_risco", ""),
                 "necessita_escalacao_imediata": parecer.get("necessita_escalacao_imediata", ""),
+                "bloqueado_seguranca": registro.get("bloqueado_seguranca", False),
+                "motivo_bloqueio": registro.get("motivo_bloqueio") or "",
             })
 
 
@@ -139,7 +155,13 @@ def exportar_html(registros: list[dict], caminho: str, dashboard: dict | None = 
 
     recomendacoes_html = "".join(f"<li>{r}</li>" for r in dashboard.get("recomendacoes", []))
 
-    html = f"""<!DOCTYPE html>
+    linhas_bloqueadas = "".join(
+        f"<tr><td>{html.escape(r['id'])}</td><td>{html.escape(r['canal'])}</td>"
+        f"<td>{html.escape(r.get('motivo_bloqueio') or '-')}</td></tr>"
+        for r in dashboard.get("reclamacoes_bloqueadas", [])
+    ) or "<tr><td colspan='3'>Nenhuma reclamação bloqueada por segurança neste lote.</td></tr>"
+
+    html_saida = f"""<!DOCTYPE html>
 <html lang="pt-br">
 <head>
 <meta charset="utf-8" />
@@ -164,9 +186,14 @@ th {{ background: #f4f4f4; }}
 <thead><tr><th>ID</th><th>Canal</th><th>Categoria</th><th>Nível de Risco</th><th>Justificativa</th></tr></thead>
 <tbody>{linhas_criticas}</tbody>
 </table>
+<h2>Reclamações bloqueadas por segurança (revisão manual)</h2>
+<table>
+<thead><tr><th>ID</th><th>Canal</th><th>Motivo do bloqueio</th></tr></thead>
+<tbody>{linhas_bloqueadas}</tbody>
+</table>
 </body>
 </html>"""
-    destino.write_text(html, encoding="utf-8")
+    destino.write_text(html_saida, encoding="utf-8")
 
 
 def exportar_markdown(dashboard: dict, caminho: str) -> None:
@@ -200,5 +227,14 @@ def exportar_markdown(dashboard: dict, caminho: str) -> None:
             )
     else:
         linhas.append("Nenhuma reclamação crítica/alta neste lote.")
+
+    linhas.append("\n## Reclamações bloqueadas por segurança (revisão manual)")
+    if dashboard.get("reclamacoes_bloqueadas"):
+        linhas.append("| ID | Canal | Motivo do bloqueio |")
+        linhas.append("|---|---|---|")
+        for registro in dashboard["reclamacoes_bloqueadas"]:
+            linhas.append(f"| {registro['id']} | {registro['canal']} | {registro.get('motivo_bloqueio', '-')} |")
+    else:
+        linhas.append("Nenhuma reclamação bloqueada por segurança neste lote.")
 
     destino.write_text("\n".join(linhas), encoding="utf-8")
