@@ -46,5 +46,6 @@ benchmark-nivel2: ## Benchmark nível 2 com gold (LIMIT/MODEL opcionais)
 shell: ## Abre shell interativo no container
 	docker compose run --rm --entrypoint /bin/bash finguard
 
-clean-reports: ## Remove arquivos gerados em reports/
+clean-reports: ## Remove arquivos gerados em reports/ (preserva reports/published/)
 	rm -f reports/*.json reports/*.csv reports/*.html reports/*.md reports/*.jsonl
+	rm -rf reports/benchmarks/*

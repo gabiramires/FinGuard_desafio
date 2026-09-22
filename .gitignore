@@ -10,3 +10,6 @@ reports/*.md
 reports/*.jsonl
 reports/benchmarks/
 !reports/.gitkeep
+# Artefatos versionados de benchmarks (apresentação + resultados)
+!reports/published/
+!reports/published/**

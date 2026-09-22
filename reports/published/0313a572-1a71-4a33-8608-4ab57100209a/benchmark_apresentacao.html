@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>FinGuard — Benchmark 500 Reclamações</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419;
+    --surface: #1a2332;
+    --surface2: #243044;
+    --border: #2d3a4f;
+    --text: #e8edf4;
+    --muted: #8b9cb3;
+    --accent: #ff6b35;
+    --accent2: #00c9a7;
+    --warn: #ffc857;
+    --danger: #ff4757;
+    --ok: #2ed573;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .hero {
+    background: linear-gradient(135deg, #1a2332 0%, #0f1419 50%, #1a1a2e 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 3rem 2rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(255,107,53,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-inner { max-width: 1200px; margin: 0 auto; position: relative; }
+  .badge {
+    display: inline-block;
+    background: rgba(0,201,167,0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(0,201,167,0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
+  h1 {
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+  h1 span { color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 600px; }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .meta-row strong { color: var(--text); }
+  main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+  section { margin-bottom: 2.5rem; }
+  h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+  .kpi.ok::after { background: var(--ok); }
+  .kpi.warn::after { background: var(--warn); }
+  .kpi.danger::after { background: var(--danger); }
+  .kpi-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.25rem; }
+  .kpi-value { font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; }
+  .kpi-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+  .kpi-delta { font-size: 0.8rem; margin-top: 0.35rem; }
+  .kpi-delta.up { color: var(--ok); }
+  .kpi-delta.down { color: var(--danger); }
+  .kpi-delta.neutral { color: var(--muted); }
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 1.25rem;
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+  }
+  .chart-card h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+  .chart-wrap { position: relative; height: 260px; }
+  .chart-wrap.tall { height: 320px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  th, td {
+    padding: 0.65rem 0.85rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.25rem;
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+  }
+  .info-item {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+  }
+  .info-item .label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .info-item .value { font-size: 0.95rem; font-weight: 600; margin-top: 0.15rem; word-break: break-all; }
+  .pill {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .pill-ok { background: rgba(46,213,115,0.15); color: var(--ok); }
+  .pill-warn { background: rgba(255,200,87,0.15); color: var(--warn); }
+  footer {
+    text-align: center;
+    padding: 2rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+  }
+  .highlight-box {
+    background: linear-gradient(135deg, rgba(255,107,53,0.08), rgba(0,201,167,0.05));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .highlight-box p { color: var(--muted); font-size: 0.9rem; }
+  .highlight-box strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="badge">Benchmark Completo — Nível 2</div>
+    <h1>Fin<span>Guard</span> — 500 Reclamações</h1>
+    <p class="subtitle">Pipeline multi-agente (estruturação → risco → consolidação) avaliado contra o dataset oficial do desafio Future Minds 3.</p>
+    <div class="meta-row">
+      <div><strong>500</strong> reclamações processadas</div>
+      <div>Provider: <strong>anthropic</strong> / claude-haiku-4-5</div>
+      <div>Duração: <strong>11.2 min</strong> (673s)</div>
+      <div>Início: <strong>22/09/2026 19:57 UTC</strong></div>
+      <div>Run ID: <strong style="font-family:monospace;font-size:0.8rem">0313a572…</strong></div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <div class="highlight-box">
+    <p><strong>Integridade:</strong> 500/500 amostras com hash de texto validado (0 mismatches).
+    Referência: <code>labels-ai-draft-v2.csv</code> (AI draft, revisão humana pendente).
+    Roteamento expresso: <strong>121</strong> reclamações (Banco Central/Procon, sem LLM) ·
+    Risco completo (LLM): <strong>379</strong> reclamações.</p>
+  </div>
+
+  <section>
+    <h2>Concordância vs Gold (500 amostras)</h2>
+    <div class="kpi-grid" id="kpi-grid"></div>
+    <div class="chart-card">
+      <h3>Comparação: run 100 amostras → run 500 amostras</h3>
+      <div class="chart-wrap"><canvas id="chartAgreement"></canvas></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Distribuição das Predições</h2>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Categoria</h3>
+        <div class="chart-wrap"><canvas id="chartCategoria"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Produto</h3>
+        <div class="chart-wrap"><canvas id="chartProduto"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Urgência</h3>
+        <div class="chart-wrap"><canvas id="chartUrgencia"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Nível de Risco</h3>
+        <div class="chart-wrap"><canvas id="chartRisco"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Performance por Agente</h2>
+    <div class="two-col">
+      <div class="chart-card">
+        <h3>Latência média por agente (ms)</h3>
+        <div class="chart-wrap tall"><canvas id="chartLatency"></canvas></div>
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Agente</th><th>Chamadas</th><th>Média</th><th>P50</th><th>P95</th><th>Total</th></tr></thead>
+          <tbody id="agent-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Principais Divergências (Gold → Predito)</h2>
+    <div class="two-col">
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Campo</th><th>Gold</th><th>Predito</th><th>Qtd</th></tr></thead>
+          <tbody id="confusion-table"></tbody>
+        </table>
+      </div>
+      <div class="chart-card">
+        <h3>Canal de origem</h3>
+        <div class="chart-wrap"><canvas id="chartCanal"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Configuração do Run</h2>
+    <div class="info-grid">
+      <div class="info-item"><div class="label">Nível do pipeline</div><div class="value">2 (multi-agente)</div></div>
+      <div class="info-item"><div class="label">Model</div><div class="value">claude-haiku-4-5</div></div>
+      <div class="info-item"><div class="label">Pack</div><div class="value">finguard-pack-v1</div></div>
+      <div class="info-item"><div class="label">Prompt estruturação</div><div class="value">agente1-estruturacao-v1</div></div>
+      <div class="info-item"><div class="label">Prompt risco</div><div class="value">agente2-risco-v1</div></div>
+      <div class="info-item"><div class="label">Dataset</div><div class="value">dataset_finguard_desafio_3.csv</div></div>
+      <div class="info-item"><div class="label">Bloqueadas (segurança)</div><div class="value">1</div></div>
+      <div class="info-item"><div class="label">Status</div><div class="value"><span class="pill pill-ok">completed</span></div></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  FinGuard — Future Minds 3 · Zup/Itaú · Gerado em 22/09/2026 16:59
+</footer>
+
+<script>
+const DATA = {"run_id": "0313a572-1a71-4a33-8608-4ab57100209a", "started": "22/09/2026 19:57 UTC", "duration_s": 672.67, "duration_min": 11.2, "provider": "anthropic", "model": "claude-haiku-4-5", "nivel": 2, "samples": 500, "hash_ok": true, "metrics": [{"key": "category", "label": "Categoria", "rate": 77.8, "prev": 70.0, "matches": 389}, {"key": "product", "label": "Produto", "rate": 87.6, "prev": 85.0, "matches": 438}, {"key": "urgency", "label": "Urgência", "rate": 75.6, "prev": 78.0, "matches": 378}, {"key": "sentiment", "label": "Sentimento", "rate": 49.0, "prev": 51.0, "matches": 245}, {"key": "risk", "label": "Nível de Risco", "rate": 76.2, "prev": null, "matches": 381}], "distributions": {"categoria": {"Cobrança Indevida": 165, "Atendimento": 92, "Fraude/Segurança": 109, "Produto/Serviço": 66, "Outros": 17, "Cancelamento": 51}, "produto": {"Empréstimo": 79, "Investimentos": 54, "Cartão de Crédito": 99, "Conta Corrente": 135, "Seguros": 53, "Não Identificado": 80}, "urgencia": {"Crítica": 305, "Alta": 143, "Baixa": 10, "Média": 42}, "sentimento": {"Crítico": 380, "Negativo": 106, "Neutro": 14}, "risco": {"Crítico": 350, "Alto": 90, "Médio": 49, "Baixo": 11}, "canal": {"Banco Central": 121, "Ouvidoria": 127, "Redes Sociais": 119, "SAC": 133}}, "agent_stats": {"agente_1_estruturacao": {"n": 500, "avg": 2048, "p50": 2016, "p95": 2492, "total_s": 1023.8}, "agente_2_risco_completo": {"n": 379, "avg": 4355, "p50": 4291, "p95": 5333, "total_s": 1650.7}, "agente_2_risco_expresso": {"n": 121, "avg": 2, "p50": 2, "p95": 3, "total_s": 0.2}, "agente_3_consolidacao": {"n": 500, "avg": 0, "p50": 0, "p95": 0, "total_s": 0.0}}, "confusions": {"category": [{"gold": "Produto/Serviço", "pred": "Atendimento", "count": 32}, {"gold": "Fraude/Segurança", "pred": "Cobrança Indevida", "count": 28}, {"gold": "Outros", "pred": "Fraude/Segurança", "count": 23}, {"gold": "Cobrança Indevida", "pred": "Produto/Serviço", "count": 9}, {"gold": "Cancelamento", "pred": "Cobrança Indevida", "count": 6}, {"gold": "Produto/Serviço", "pred": "Fraude/Segurança", "count": 3}], "urgency": [{"gold": "Crítica", "pred": "Alta", "count": 43}, {"gold": "Média", "pred": "Alta", "count": 37}, {"gold": "Alta", "pred": "Crítica", "count": 15}, {"gold": "Baixa", "pred": "Média", "count": 8}, {"gold": "Crítica", "pred": "Baixa", "count": 6}, {"gold": "Crítica", "pred": "Média", "count": 5}], "risk": [{"gold": "Médio", "pred": "Alto", "count": 39}, {"gold": "Alto", "pred": "Crítico", "count": 28}, {"gold": "Crítico", "pred": "Alto", "count": 14}, {"gold": "Alto", "pred": "Médio", "count": 12}, {"gold": "Médio", "pred": "Crítico", "count": 10}, {"gold": "Crítico", "pred": "Médio", "count": 5}], "sentiment": [{"gold": "Negativo", "pred": "Crítico", "count": 159}, {"gold": "Neutro", "pred": "Crítico", "count": 53}, {"gold": "Neutro", "pred": "Negativo", "count": 43}]}, "expresso": 121, "completo": 379, "bloqueadas": 1};
+
+const COLORS = ['#ff6b35','#00c9a7','#ffc857','#5b8def','#c084fc','#f472b6','#34d399','#fb923c'];
+const MUTED = '#8b9cb3';
+const TEXT = '#e8edf4';
+const GRID = 'rgba(45,58,79,0.5)';
+
+Chart.defaults.color = MUTED;
+Chart.defaults.borderColor = GRID;
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+// KPI cards
+const kpiGrid = document.getElementById('kpi-grid');
+DATA.metrics.forEach(m => {
+  const cls = m.rate >= 75 ? 'ok' : m.rate >= 50 ? 'warn' : 'danger';
+  let delta = '';
+  if (m.prev !== null) {
+    const diff = m.rate - m.prev;
+    const sign = diff >= 0 ? '+' : '';
+    const deltaCls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'neutral';
+    delta = `<div class="kpi-delta ${deltaCls}">${sign}${diff.toFixed(1)}pp vs 100 amostras</div>`;
+  }
+  kpiGrid.innerHTML += `
+    <div class="kpi ${cls}">
+      <div class="kpi-label">${m.label}</div>
+      <div class="kpi-value">${m.rate.toFixed(1)}%</div>
+      <div class="kpi-sub">${m.matches}/500 acertos</div>
+      ${delta}
+    </div>`;
+});
+
+// Agreement comparison chart
+new Chart(document.getElementById('chartAgreement'), {
+  type: 'bar',
+  data: {
+    labels: DATA.metrics.filter(m => m.prev !== null).map(m => m.label),
+    datasets: [
+      { label: '100 amostras', data: DATA.metrics.filter(m => m.prev !== null).map(m => m.prev), backgroundColor: 'rgba(139,156,179,0.4)', borderRadius: 6 },
+      { label: '500 amostras', data: DATA.metrics.filter(m => m.prev !== null).map(m => m.rate), backgroundColor: 'rgba(255,107,53,0.8)', borderRadius: 6 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+function doughnut(id, labels, values) {
+  new Chart(document.getElementById(id), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: COLORS.slice(0, labels.length), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 8 } } }
+    }
+  });
+}
+
+doughnut('chartCategoria', Object.keys(DATA.distributions.categoria), Object.values(DATA.distributions.categoria));
+doughnut('chartProduto', Object.keys(DATA.distributions.produto), Object.values(DATA.distributions.produto));
+doughnut('chartUrgencia', Object.keys(DATA.distributions.urgencia), Object.values(DATA.distributions.urgencia));
+doughnut('chartRisco', Object.keys(DATA.distributions.risco), Object.values(DATA.distributions.risco));
+doughnut('chartCanal', Object.keys(DATA.distributions.canal), Object.values(DATA.distributions.canal));
+
+// Latency chart
+const agentLabels = {
+  'agente_1_estruturacao': 'Agente 1 — Estruturação',
+  'agente_2_risco_completo': 'Agente 2 — Risco (LLM)',
+  'agente_2_risco_expresso': 'Agente 2 — Risco Expresso',
+  'agente_3_consolidacao': 'Agente 3 — Consolidação',
+};
+const agents = Object.entries(DATA.agent_stats);
+new Chart(document.getElementById('chartLatency'), {
+  type: 'bar',
+  data: {
+    labels: agents.map(([k]) => agentLabels[k] || k),
+    datasets: [{
+      label: 'Média (ms)',
+      data: agents.map(([,v]) => v.avg),
+      backgroundColor: agents.map(([k]) => k.includes('expresso') ? 'rgba(0,201,167,0.7)' : k.includes('consolidacao') ? 'rgba(139,156,179,0.4)' : 'rgba(255,107,53,0.7)'),
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true, ticks: { callback: v => v + ' ms' } } }
+  }
+});
+
+// Agent table
+const agentTable = document.getElementById('agent-table');
+agents.forEach(([k, v]) => {
+  agentTable.innerHTML += `<tr>
+    <td>${agentLabels[k] || k}</td>
+    <td>${v.n}</td>
+    <td>${v.avg.toLocaleString('pt-BR')} ms</td>
+    <td>${v.p50.toLocaleString('pt-BR')} ms</td>
+    <td>${v.p95.toLocaleString('pt-BR')} ms</td>
+    <td>${v.total_s} s</td>
+  </tr>`;
+});
+
+// Confusion table
+const fieldLabels = { category: 'Categoria', urgency: 'Urgência', risk: 'Risco', sentiment: 'Sentimento' };
+const confusionTable = document.getElementById('confusion-table');
+Object.entries(DATA.confusions).forEach(([field, pairs]) => {
+  pairs.forEach(p => {
+    confusionTable.innerHTML += `<tr>
+      <td>${fieldLabels[field]}</td>
+      <td>${p.gold}</td>
+      <td>${p.pred}</td>
+      <td><strong>${p.count}</strong></td>
+    </tr>`;
+  });
+});
+</script>
+</body>
+</html>
