@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+.env
+reports/*
+!reports/.gitkeep
+*.md
+!ks_politica_interna.md
+!data/gold/README.md

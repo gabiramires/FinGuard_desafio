@@ -8,4 +8,5 @@ reports/*.csv
 reports/*.html
 reports/*.md
 reports/*.jsonl
+reports/benchmarks/
 !reports/.gitkeep

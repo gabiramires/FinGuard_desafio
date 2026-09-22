@@ -1,0 +1,12 @@
+services:
+  finguard:
+    build: .
+    image: finguard:latest
+    volumes:
+      - ./assets:/app/assets:ro
+      - ./data:/app/data:ro
+      - ./reports:/app/reports
+      - ./ks_politica_interna.md:/app/ks_politica_interna.md:ro
+    env_file:
+      - path: .env
+        required: false
