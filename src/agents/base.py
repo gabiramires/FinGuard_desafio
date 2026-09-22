@@ -16,15 +16,48 @@ from src.infrastructure.logging.agent_logger import AgentLogger
 from src.prompts.loader import PromptAsset
 
 
+_PADROES_ATAQUE = (
+    "prompt_injection",
+    "attack_instruction",
+    "jailbreak",
+    "manipulat",
+    "bypass",
+    "guardrail",
+    "system_prompt",
+)
+
+
+def _suspeita_ataque(bloqueio: RespostaAgenteInvalidaError) -> bool:
+    """Só marca como tentativa de ataque quando a categoria de moderação do gateway
+    realmente indica isso (prompt injection/jailbreak/etc).
+
+    O gateway pode bloquear (finish_reason=content_filter) por outros motivos alheios a
+    ataque — ex.: linguagem de sofrimento/desespero extremo em reclamações legítimas — e
+    nesses casos não faz sentido rotular a reclamação como fraude/tentativa de manipulação.
+    """
+    if not isinstance(bloqueio, ConteudoBloqueadoError):
+        return False
+    texto = f"{bloqueio.motivo} {bloqueio.detalhe or ''}".lower()
+    return any(padrao in texto for padrao in _PADROES_ATAQUE)
+
+
 def _resultado_bloqueado(schema: Type[BaseModel], bloqueio: RespostaAgenteInvalidaError) -> BaseModel:
     """Fallback seguro quando a chamada ao LLM não produz uma saída estruturada válida.
 
-    Dois motivos possíveis: (1) o gateway recusou gerar a tool call — moderação/guardrail,
-    comum em reclamações que na verdade são tentativas de prompt injection (o dataset oficial
-    do desafio contém casos assim de propósito); ou (2) o modelo devolveu um payload que não
-    valida contra o schema (erro técnico do provider, não necessariamente um ataque).
+    Motivos possíveis: (1) o gateway recusou gerar a tool call por detectar uma tentativa
+    real de prompt injection/manipulação; (2) o gateway bloqueou por outro motivo de
+    moderação não relacionado a ataque (ex.: sofrimento extremo do cliente); ou (3) o modelo
+    devolveu um payload que não valida contra o schema (erro técnico do provider). Só o
+    caso (1) é rotulado como suspeita de ataque — os demais ficam neutros, só sinalizados
+    para revisão manual.
     """
-    suspeita_ataque = isinstance(bloqueio, ConteudoBloqueadoError)
+    suspeita_ataque = _suspeita_ataque(bloqueio)
+    if suspeita_ataque:
+        explicacao = "possível tentativa de manipulação do modelo (prompt injection)"
+    elif isinstance(bloqueio, ConteudoBloqueadoError):
+        explicacao = "bloqueado pela moderação do gateway por motivo não relacionado a ataque"
+    else:
+        explicacao = "resposta do modelo inválida/mal formatada"
 
     if schema is AnaliseEstruturada:
         return AnaliseEstruturada(
@@ -33,8 +66,7 @@ def _resultado_bloqueado(schema: Type[BaseModel], bloqueio: RespostaAgenteInvali
             sentimento=Sentimento.CRITICO if suspeita_ataque else Sentimento.NEUTRO,
             urgencia=Urgencia.CRITICA if suspeita_ataque else Urgencia.ALTA,
             resumo=(
-                f"Não foi possível gerar a análise automática ({bloqueio.motivo}) — "
-                f"{'possível tentativa de manipulação do modelo' if suspeita_ataque else 'resposta do modelo inválida/mal formatada'}. "
+                f"Não foi possível gerar a análise automática ({bloqueio.motivo}) — {explicacao}. "
                 "Não classificado automaticamente; requer revisão manual."
             ),
         )
@@ -42,8 +74,7 @@ def _resultado_bloqueado(schema: Type[BaseModel], bloqueio: RespostaAgenteInvali
         return ParecerRisco(
             nivel_risco=NivelRisco.CRITICO if suspeita_ataque else NivelRisco.ALTO,
             justificativa=(
-                f"Não foi possível gerar o parecer de risco ({bloqueio.motivo}) — "
-                f"{'possível tentativa de manipulação do modelo' if suspeita_ataque else 'resposta do modelo inválida/mal formatada'}. "
+                f"Não foi possível gerar o parecer de risco ({bloqueio.motivo}) — {explicacao}. "
                 "Escalar para revisão manual."
             ),
             indicios_fraude=suspeita_ataque,

@@ -54,9 +54,9 @@ def gerar_recomendacoes(
     recomendacoes = []
     if total_bloqueadas:
         recomendacoes.append(
-            f"{total_bloqueadas} reclamação(ões) bloqueada(s) pelo gateway de IA (possível tentativa de "
-            "prompt injection/manipulação do modelo) — não classificadas automaticamente, requerem "
-            "revisão manual imediata (ver seção 'Reclamações bloqueadas por segurança')."
+            f"{total_bloqueadas} reclamação(ões) não puderam ser classificadas automaticamente (bloqueio "
+            "de moderação do gateway ou resposta inválida do modelo) — requerem revisão manual imediata "
+            "(ver seção 'Reclamações bloqueadas por segurança'; nem todo bloqueio é tentativa de ataque)."
         )
 
     pct_fraude = contagem_categoria.get("Fraude/Segurança", 0) / total
