@@ -1,90 +1,88 @@
 """CLI do FinGuard.
 
-Nível 1: só o agente de estruturação (classificador) sobre cada reclamação.
-Nível 2: grafo LangGraph completo (agente_1 -> agente_2 -> agente_3) com
-relatório gerencial agregado.
-
-Exemplos:
-    python main.py --nivel 1 --input data/reclamacoes.csv --limit 20
-    python main.py --nivel 2 --input data/reclamacoes.csv --provider mock
+Nível 1: classificador (agente de estruturação).
+Nível 2: orquestrador multi-agente (LangGraph).
+Benchmark: run rastreável com hashes, prompts versionados e comparação gold opcional.
 """
 
 import argparse
 import time
+from pathlib import Path
 
-import pandas as pd
 from dotenv import load_dotenv
 
-from src import relatorio
-from src.agents import agente1_estruturacao
-from src.graph import construir_grafo, processar_reclamacao
-from src.llm_client import LLMClient
-from src.logging_utils import AgentLogger
-
-
-def carregar_reclamacoes(caminho_csv: str, limite: int | None) -> list[dict]:
-    df = pd.read_csv(caminho_csv, dtype=str).fillna("")
-    registros = df.to_dict(orient="records")
-    for registro in registros:
-        registro["produto"] = registro.get("produto") or None
-    if limite:
-        registros = registros[:limite]
-    return registros
-
-
-def rodar_nivel1(reclamacoes: list[dict], llm: LLMClient, logger: AgentLogger) -> list[dict]:
-    resultados = []
-    for i, reclamacao in enumerate(reclamacoes, start=1):
-        print(f"[nível 1] {i}/{len(reclamacoes)} — {reclamacao['id']}")
-        analise = agente1_estruturacao.executar(reclamacao, llm, logger)
-        resultados.append(
-            {
-                "id": reclamacao["id"],
-                "canal": reclamacao.get("canal", ""),
-                "data_reclamacao": reclamacao.get("data_reclamacao"),
-                "texto_reclamacao": reclamacao["texto_reclamacao"],
-                "analise": analise.model_dump(mode="json"),
-                "parecer_risco": None,
-            }
-        )
-    return resultados
-
-
-def rodar_nivel2(reclamacoes: list[dict], llm: LLMClient, logger: AgentLogger) -> list[dict]:
-    app = construir_grafo(llm, logger)
-    resultados = []
-    for i, reclamacao in enumerate(reclamacoes, start=1):
-        print(f"[nível 2] {i}/{len(reclamacoes)} — {reclamacao['id']}")
-        resultados.append(processar_reclamacao(app, reclamacao))
-    return resultados
+from src.application.pipeline import criar_contexto, rodar_nivel1, rodar_nivel2
+from src.benchmark.runner import BenchmarkConfig, executar_benchmark
+from src.infrastructure.data.csv_loader import carregar_reclamacoes
+from src.infrastructure.llm.client import LLMGateway
+from src.infrastructure.logging.agent_logger import AgentLogger
+from src.prompts.loader import carregar_pack
+from src.reporting import relatorio
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="FinGuard — análise inteligente de reclamações")
     parser.add_argument("--nivel", type=int, choices=[1, 2], default=1, help="1 = classificador; 2 = orquestrador multi-agente")
     parser.add_argument("--input", default="data/reclamacoes.csv")
-    parser.add_argument("--limit", type=int, default=None, help="processa só as N primeiras linhas (útil para teste rápido)")
-    parser.add_argument("--provider", default=None, help="mock | anthropic | bedrock (sobrescreve FINGUARD_LLM_PROVIDER do .env)")
+    parser.add_argument("--limit", type=int, default=None, help="processa só as N primeiras linhas")
+    parser.add_argument("--provider", default=None, help="mock | anthropic | bedrock")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="model id do provider (ex.: claude-haiku-4-5). Sobrescreve FINGUARD_LLM_MODEL",
+    )
+    parser.add_argument("--benchmark", action="store_true", help="executa como benchmark rastreável em reports/benchmarks/<run_id>/")
+    parser.add_argument("--gold", default=None, help="CSV gold para comparação determinística (ex.: data/gold/labels-ai-draft-v2.csv)")
+    parser.add_argument("--pack", default=None, help="caminho alternativo para assets/pack.yaml")
     args = parser.parse_args()
 
     load_dotenv()
 
-    llm = LLMClient(provider=args.provider)
+    gold_path = args.gold
+    if gold_path is None and args.benchmark:
+        pack = carregar_pack(Path(args.pack) if args.pack else None)
+        if pack.gold_path and pack.gold_path.exists():
+            gold_path = str(pack.gold_path)
+
+    if args.benchmark:
+        run_dir = executar_benchmark(
+            BenchmarkConfig(
+                nivel=args.nivel,
+                input_csv=args.input,
+                limit=args.limit,
+                provider=args.provider,
+                model=args.model,
+                gold_path=gold_path,
+                pack_path=args.pack,
+            )
+        )
+        print(f"Benchmark concluído: {run_dir}")
+        print(f"  metadata: {run_dir / 'benchmark_run.json'}")
+        print(f"  execuções: {run_dir / 'sample_executions.jsonl'}")
+        if gold_path:
+            print(f"  análise gold: {run_dir / 'benchmark_analysis.json'}")
+        return
+
+    llm = LLMGateway(provider=args.provider, model=args.model)
     logger = AgentLogger()
+    ctx = criar_contexto(llm, logger, carregar_pack(Path(args.pack) if args.pack else None))
 
     reclamacoes = carregar_reclamacoes(args.input, args.limit)
-    print(f"Carregadas {len(reclamacoes)} reclamações de {args.input} (provider={llm.provider})")
+    print(
+        f"Carregadas {len(reclamacoes)} reclamações de {args.input} "
+        f"(provider={llm.provider}, model={llm.model})"
+    )
 
     inicio = time.perf_counter()
 
     if args.nivel == 1:
-        resultados = rodar_nivel1(reclamacoes, llm, logger)
+        resultados = rodar_nivel1(ctx, reclamacoes)
         relatorio.exportar_json(resultados, "reports/resultados_nivel1.json")
         relatorio.exportar_csv(resultados, "reports/resultados_nivel1.csv")
         relatorio.exportar_html(resultados, "reports/relatorio_nivel1.html")
         print("Saídas: reports/resultados_nivel1.json, reports/resultados_nivel1.csv, reports/relatorio_nivel1.html")
     else:
-        resultados = rodar_nivel2(reclamacoes, llm, logger)
+        resultados = rodar_nivel2(ctx, reclamacoes)
         dashboard = relatorio.montar_dashboard(resultados)
         relatorio.exportar_json(resultados, "reports/resultados_nivel2.json")
         relatorio.exportar_csv(resultados, "reports/resultados_nivel2.csv")
@@ -96,7 +94,7 @@ def main() -> None:
         )
 
     duracao = time.perf_counter() - inicio
-    print(f"Concluído em {duracao:.1f}s. Logs de execução por agente em reports/logs.jsonl.")
+    print(f"Concluído em {duracao:.1f}s. Logs em reports/logs.jsonl.")
 
 
 if __name__ == "__main__":

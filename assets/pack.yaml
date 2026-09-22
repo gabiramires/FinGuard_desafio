@@ -1,0 +1,6 @@
+version: finguard-pack-v1
+prompts:
+  estruturacao: assets/prompts/agente1-estruturacao-v1.json
+  risco: assets/prompts/agente2-risco-v1.json
+policy: ks_politica_interna.md
+gold: data/gold/labels-ai-draft-v2.csv
