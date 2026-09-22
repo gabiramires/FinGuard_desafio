@@ -1,5 +1,6 @@
 """Casos de uso — pipelines Nível 1 e Nível 2."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
 from src.agents import estruturacao
@@ -31,10 +32,8 @@ def criar_contexto(llm: LLMGateway, logger: AgentLogger, pack: DomainPack | None
     )
 
 
-def rodar_nivel1(ctx: PipelineContext, reclamacoes: list[dict]) -> list[dict]:
-    resultados = []
-    for i, reclamacao in enumerate(reclamacoes, start=1):
-        print(f"[nível 1] {i}/{len(reclamacoes)} — {reclamacao['id']}")
+def rodar_nivel1(ctx: PipelineContext, reclamacoes: list[dict], max_workers: int = 1) -> list[dict]:
+    def _processar(reclamacao: dict) -> dict:
         analise = estruturacao.executar(
             reclamacao,
             ctx.llm,
@@ -42,24 +41,45 @@ def rodar_nivel1(ctx: PipelineContext, reclamacoes: list[dict]) -> list[dict]:
             prompt=ctx.prompt_estruturacao,
             rag=ctx.rag,
         )
-        resultados.append(
-            {
-                "id": reclamacao["id"],
-                "canal": reclamacao.get("canal", ""),
-                "data_reclamacao": reclamacao.get("data_reclamacao"),
-                "texto_reclamacao": reclamacao["texto_reclamacao"],
-                "analise": analise.model_dump(mode="json"),
-                "parecer_risco": None,
-            }
-        )
-    return resultados
+        return {
+            "id": reclamacao["id"],
+            "canal": reclamacao.get("canal", ""),
+            "data_reclamacao": reclamacao.get("data_reclamacao"),
+            "texto_reclamacao": reclamacao["texto_reclamacao"],
+            "analise": analise.model_dump(mode="json"),
+            "parecer_risco": None,
+        }
+
+    return _executar_em_paralelo(reclamacoes, _processar, max_workers, rotulo="nível 1")
 
 
-def rodar_nivel2(ctx: PipelineContext, reclamacoes: list[dict]) -> list[dict]:
+def rodar_nivel2(ctx: PipelineContext, reclamacoes: list[dict], max_workers: int = 1) -> list[dict]:
     config = GrafoConfig(llm=ctx.llm, logger=ctx.logger, pack=ctx.pack, rag=ctx.rag)
     app = construir_grafo(config)
-    resultados = []
-    for i, reclamacao in enumerate(reclamacoes, start=1):
-        print(f"[nível 2] {i}/{len(reclamacoes)} — {reclamacao['id']}")
-        resultados.append(processar_reclamacao(app, reclamacao))
+
+    def _processar(reclamacao: dict) -> dict:
+        return processar_reclamacao(app, reclamacao)
+
+    return _executar_em_paralelo(reclamacoes, _processar, max_workers, rotulo="nível 2")
+
+
+def _executar_em_paralelo(reclamacoes: list[dict], processar, max_workers: int, rotulo: str) -> list[dict]:
+    total = len(reclamacoes)
+    resultados: list[dict | None] = [None] * total
+
+    if max_workers <= 1:
+        for i, reclamacao in enumerate(reclamacoes):
+            print(f"[{rotulo}] {i + 1}/{total} — {reclamacao['id']}")
+            resultados[i] = processar(reclamacao)
+        return resultados
+
+    concluidos = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futuros = {executor.submit(processar, reclamacao): i for i, reclamacao in enumerate(reclamacoes)}
+        for futuro in as_completed(futuros):
+            i = futuros[futuro]
+            resultados[i] = futuro.result()
+            concluidos += 1
+            print(f"[{rotulo}] {concluidos}/{total} — {reclamacoes[i]['id']}")
+
     return resultados

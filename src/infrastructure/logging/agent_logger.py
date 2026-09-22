@@ -1,6 +1,7 @@
 """Log de execução por agente (rastreabilidade)."""
 
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ class AgentLogger:
     def __init__(self, caminho: str = "reports/logs.jsonl"):
         self.caminho = Path(caminho)
         self.caminho.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
 
     def registrar(
         self,
@@ -32,5 +34,5 @@ class AgentLogger:
             "saida": saida,
             "duracao_ms": round(duracao_ms, 2),
         }
-        with self.caminho.open("a", encoding="utf-8") as arquivo:
+        with self._lock, self.caminho.open("a", encoding="utf-8") as arquivo:
             arquivo.write(json.dumps(registro, ensure_ascii=False, default=str) + "\n")

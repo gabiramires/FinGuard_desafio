@@ -10,12 +10,25 @@ from .mock import gerar_estruturado as mock_gerar
 
 T = TypeVar("T", bound=BaseModel)
 
+
+class ConteudoBloqueadoError(RuntimeError):
+    """Gateway recusou gerar a tool call (moderação/guardrail), em vez de erro de integração."""
+
+    def __init__(self, motivo: str, detalhe: str | None = None):
+        self.motivo = motivo
+        self.detalhe = detalhe
+        super().__init__(f"Gateway bloqueou a resposta (finish_reason={motivo}): {detalhe or ''}".strip())
+
+
 _MOCK_MODEL_ID = "mock-heuristics-v1"
 
 _MODELOS_SUGERIDOS = {
     "anthropic": "claude-haiku-4-5",
     "bedrock": "anthropic.claude-haiku-4-5-20251001-v1:0",
+    "litellm": "bedrock-anthropic-claude-haiku-4-5",
 }
+
+_LITELLM_BASE_URL_PADRAO = "https://dx-ai-gateway.platform.sbox.zupcloud.corp"
 
 
 def resolver_modelo(provider: str, model: str | None = None) -> str:
@@ -50,8 +63,20 @@ class LLMGateway:
             import boto3
 
             self._client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "us-east-1"))
+        elif self.provider == "litellm":
+            from openai import DefaultHttpxClient, OpenAI
+
+            token = os.getenv("LITELLM_TOKEN")
+            if not token:
+                raise ValueError("Provider 'litellm' requer LITELLM_TOKEN no ambiente/.env")
+            self._client = OpenAI(
+                api_key=token,
+                base_url=os.getenv("LITELLM_BASE_URL", _LITELLM_BASE_URL_PADRAO),
+                # verify=False: sandbox do desafio usa certificado próprio (ver doc do AI Gateway)
+                http_client=DefaultHttpxClient(verify=False),
+            )
         else:
-            raise ValueError(f"Provider desconhecido: {self.provider!r} (use mock, anthropic ou bedrock)")
+            raise ValueError(f"Provider desconhecido: {self.provider!r} (use mock, anthropic, bedrock ou litellm)")
 
     def gerar_estruturado(self, system: str, user: str, schema: Type[T]) -> T:
         if self.provider == "mock":
@@ -95,5 +120,32 @@ class LLMGateway:
                 if "toolUse" in bloco:
                     return schema.model_validate(bloco["toolUse"]["input"])
             raise RuntimeError("Resposta do Bedrock não trouxe toolUse.")
+
+        if self.provider == "litellm":
+            import json as _json
+
+            resposta = self._client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                tools=[
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool["name"],
+                            "description": tool["description"],
+                            "parameters": tool["input_schema"],
+                        },
+                    }
+                ],
+                tool_choice={"type": "function", "function": {"name": tool["name"]}},
+            )
+            escolha = resposta.choices[0]
+            chamadas = escolha.message.tool_calls
+            if not chamadas:
+                raise ConteudoBloqueadoError(escolha.finish_reason or "desconhecido", escolha.message.content)
+            return schema.model_validate(_json.loads(chamadas[0].function.arguments))
 
         raise ValueError(f"Provider não suportado: {self.provider!r}")

@@ -30,6 +30,7 @@ class BenchmarkConfig:
     model: str | None = None
     gold_path: str | None = None
     pack_path: str | None = None
+    max_workers: int = 1
 
 
 def _git_commit() -> str | None:
@@ -97,9 +98,9 @@ def executar_benchmark(config: BenchmarkConfig) -> Path:
     try:
         reclamacoes = carregar_reclamacoes(config.input_csv, config.limit)
         if config.nivel == 1:
-            resultados = rodar_nivel1(ctx, reclamacoes)
+            resultados = rodar_nivel1(ctx, reclamacoes, max_workers=config.max_workers)
         else:
-            resultados = rodar_nivel2(ctx, reclamacoes)
+            resultados = rodar_nivel2(ctx, reclamacoes, max_workers=config.max_workers)
         _atualizar_checkpoint(checkpoint_path, "completed", len(resultados), total)
     except Exception as exc:  # noqa: BLE001 — benchmark must capture failure
         status = "failed"

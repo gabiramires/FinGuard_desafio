@@ -31,6 +31,12 @@ def main() -> None:
         default=None,
         help="model id do provider (ex.: claude-haiku-4-5). Sobrescreve FINGUARD_LLM_MODEL",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="nº de reclamações processadas em paralelo (threads). Padrão 1 = sequencial",
+    )
     parser.add_argument("--benchmark", action="store_true", help="executa como benchmark rastreável em reports/benchmarks/<run_id>/")
     parser.add_argument("--gold", default=None, help="CSV gold para comparação determinística (ex.: data/gold/labels-ai-draft-v2.csv)")
     parser.add_argument("--pack", default=None, help="caminho alternativo para assets/pack.yaml")
@@ -54,6 +60,7 @@ def main() -> None:
                 model=args.model,
                 gold_path=gold_path,
                 pack_path=args.pack,
+                max_workers=args.workers,
             )
         )
         print(f"Benchmark concluído: {run_dir}")
@@ -76,13 +83,13 @@ def main() -> None:
     inicio = time.perf_counter()
 
     if args.nivel == 1:
-        resultados = rodar_nivel1(ctx, reclamacoes)
+        resultados = rodar_nivel1(ctx, reclamacoes, max_workers=args.workers)
         relatorio.exportar_json(resultados, "reports/resultados_nivel1.json")
         relatorio.exportar_csv(resultados, "reports/resultados_nivel1.csv")
         relatorio.exportar_html(resultados, "reports/relatorio_nivel1.html")
         print("Saídas: reports/resultados_nivel1.json, reports/resultados_nivel1.csv, reports/relatorio_nivel1.html")
     else:
-        resultados = rodar_nivel2(ctx, reclamacoes)
+        resultados = rodar_nivel2(ctx, reclamacoes, max_workers=args.workers)
         dashboard = relatorio.montar_dashboard(resultados)
         relatorio.exportar_json(resultados, "reports/resultados_nivel2.json")
         relatorio.exportar_csv(resultados, "reports/resultados_nivel2.csv")

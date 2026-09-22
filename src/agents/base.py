@@ -5,9 +5,43 @@ from typing import Any, Protocol, Type
 
 from pydantic import BaseModel
 
-from src.infrastructure.llm.client import LLMGateway
+from src.domain.enums import Categoria, NivelRisco, Produto, Sentimento, Urgencia
+from src.domain.models import AnaliseEstruturada, ParecerRisco
+from src.infrastructure.llm.client import ConteudoBloqueadoError, LLMGateway
 from src.infrastructure.logging.agent_logger import AgentLogger
 from src.prompts.loader import PromptAsset
+
+
+def _resultado_bloqueado(schema: Type[BaseModel], bloqueio: ConteudoBloqueadoError) -> BaseModel:
+    """Fallback seguro quando o gateway recusa gerar a resposta (moderação/guardrail).
+
+    Comum em reclamações que na verdade são tentativas de prompt injection —
+    o dataset oficial do desafio contém casos assim de propósito.
+    """
+    if schema is AnaliseEstruturada:
+        return AnaliseEstruturada(
+            categoria=Categoria.FRAUDE_SEGURANCA,
+            produto=Produto.NAO_IDENTIFICADO,
+            sentimento=Sentimento.CRITICO,
+            urgencia=Urgencia.CRITICA,
+            resumo=(
+                f"Conteúdo bloqueado pelo gateway de IA ({bloqueio.motivo}) — possível tentativa de "
+                "manipulação do modelo. Não classificado automaticamente; requer revisão manual."
+            ),
+        )
+    if schema is ParecerRisco:
+        return ParecerRisco(
+            nivel_risco=NivelRisco.CRITICO,
+            justificativa=(
+                f"Gateway de IA bloqueou a geração da análise ({bloqueio.motivo}) — possível tentativa "
+                "de manipulação do modelo. Escalar para revisão manual."
+            ),
+            indicios_fraude=True,
+            indicios_violacao_regulatoria=False,
+            risco_reputacional=False,
+            necessita_escalacao_imediata=True,
+        )
+    raise bloqueio
 
 
 @dataclass(frozen=True)
@@ -49,8 +83,6 @@ class LLMStructuredAgent:
     def executar(self, reclamacao: dict, logger: AgentLogger, **variaveis_extras: Any) -> BaseModel:
         import time
 
-        from src.domain.models import AnaliseEstruturada
-
         inicio = time.perf_counter()
         contexto = self.rag_contexto(reclamacao, **variaveis_extras)
 
@@ -74,7 +106,11 @@ class LLMStructuredAgent:
         )
         system, user = self.prompt.render(**variaveis)
         schema: Type[BaseModel] = self.prompt.output_model
-        resultado = self.llm.gerar_estruturado(system, user, schema)
+        try:
+            resultado = self.llm.gerar_estruturado(system, user, schema)
+        except ConteudoBloqueadoError as bloqueio:
+            print(f"[aviso] {reclamacao['id']}: {bloqueio} — usando fallback para revisão manual")
+            resultado = _resultado_bloqueado(schema, bloqueio)
 
         if self.pos_processar:
             resultado = self.pos_processar(resultado)
