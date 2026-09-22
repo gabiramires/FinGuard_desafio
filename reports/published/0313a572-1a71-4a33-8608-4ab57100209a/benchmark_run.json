@@ -1,0 +1,38 @@
+{
+  "id": "0313a572-1a71-4a33-8608-4ab57100209a",
+  "status": "completed",
+  "started_at": "2026-09-22T19:57:57.080979+00:00",
+  "duration_s": 672.67,
+  "git_commit": null,
+  "git_status": null,
+  "decision_model": "anthropic",
+  "model": "claude-haiku-4-5",
+  "pack_version": "finguard-pack-v1",
+  "pack_hash": "e029b3d2f3b83f921b97ec697fee54b676c7da2c93c4d2f76c9e15c317814fac",
+  "prompt_hash": "2f995e9cb19d1e41acb7833a2c99020bb68c2ebdbbb5f0197c069e3593119e96",
+  "prompt_versions": {
+    "estruturacao": "agente1-estruturacao-v1",
+    "risco": "agente2-risco-v1"
+  },
+  "prompt_hashes": {
+    "estruturacao": "c2f034c11ca5b27c375e040dc77c21fba295affdb6562b861e99ca67427cd625",
+    "risco": "c9d6f6bcfd6ad1524148554d9bfe13b060a0613af4e1c65e4711124ebd03d6ad"
+  },
+  "config_hash": "ff54a1d68a77a8240e777a026e12ea5be8063131fbe2b44e0ca1aebc7cdf5e0c",
+  "pipeline_config": {
+    "nivel": 2,
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5",
+    "pack_version": "finguard-pack-v1",
+    "prompt_versions": {
+      "estruturacao": "agente1-estruturacao-v1",
+      "risco": "agente2-risco-v1"
+    },
+    "input_csv": "data/dataset_finguard_desafio_3.csv",
+    "limit": null
+  },
+  "dataset_hash": "9eeee12207acc207e8595063819039d588a8ab2277d1611756a5f0a34b4cfe37",
+  "error": null,
+  "gold_path": "data/gold/labels-ai-draft-v2.csv",
+  "gold_hash": "3f7b82c4c52edb0bc268fb50a7c3fef699df757804ffdca022428f4c5a77e3ed"
+}

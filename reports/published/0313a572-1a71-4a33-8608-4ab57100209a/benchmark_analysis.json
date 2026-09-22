@@ -1,0 +1,168 @@
+{
+  "report_type": "benchmark_comparison",
+  "reference_type": "ai_draft_non_gold",
+  "nivel": 2,
+  "coverage": {
+    "labels": 500,
+    "predictions": 500,
+    "matched": 500,
+    "missing_in_predictions": [],
+    "extra_in_predictions": [],
+    "hash_mismatches": []
+  },
+  "agreement": {
+    "category": {
+      "compared": 500,
+      "matches": 389,
+      "rate": 0.778
+    },
+    "product": {
+      "compared": 500,
+      "matches": 438,
+      "rate": 0.876
+    },
+    "sentiment": {
+      "compared": 500,
+      "matches": 245,
+      "rate": 0.49
+    },
+    "urgency": {
+      "compared": 500,
+      "matches": 378,
+      "rate": 0.756
+    },
+    "risk": {
+      "compared": 500,
+      "matches": 381,
+      "rate": 0.762
+    }
+  },
+  "confusion": {
+    "category": {
+      "Cobrança Indevida": {
+        "Cobrança Indevida": 127,
+        "Produto/Serviço": 9,
+        "Atendimento": 2,
+        "Fraude/Segurança": 1
+      },
+      "Cancelamento": {
+        "Cobrança Indevida": 6,
+        "Cancelamento": 49
+      },
+      "Atendimento": {
+        "Atendimento": 57
+      },
+      "Fraude/Segurança": {
+        "Fraude/Segurança": 82,
+        "Cobrança Indevida": 28,
+        "Cancelamento": 1
+      },
+      "Outros": {
+        "Fraude/Segurança": 23,
+        "Outros": 17,
+        "Atendimento": 1,
+        "Cobrança Indevida": 2
+      },
+      "Produto/Serviço": {
+        "Produto/Serviço": 57,
+        "Atendimento": 32,
+        "Cancelamento": 1,
+        "Fraude/Segurança": 3,
+        "Cobrança Indevida": 2
+      }
+    },
+    "product": {
+      "Empréstimo": {
+        "Empréstimo": 72,
+        "Conta Corrente": 2
+      },
+      "Investimentos": {
+        "Investimentos": 53,
+        "Conta Corrente": 1
+      },
+      "Cartão de Crédito": {
+        "Cartão de Crédito": 87,
+        "Não Identificado": 1
+      },
+      "Conta Corrente": {
+        "Conta Corrente": 122,
+        "Não Identificado": 20
+      },
+      "Seguros": {
+        "Seguros": 45,
+        "Conta Corrente": 1
+      },
+      "Não Identificado": {
+        "Não Identificado": 59,
+        "Cartão de Crédito": 12,
+        "Seguros": 8,
+        "Conta Corrente": 9,
+        "Empréstimo": 7,
+        "Investimentos": 1
+      }
+    },
+    "sentiment": {
+      "Negativo": {
+        "Crítico": 159,
+        "Negativo": 63
+      },
+      "Crítico": {
+        "Crítico": 168
+      },
+      "Neutro": {
+        "Crítico": 53,
+        "Neutro": 14,
+        "Negativo": 43
+      }
+    },
+    "urgency": {
+      "Crítica": {
+        "Crítica": 288,
+        "Alta": 43,
+        "Baixa": 6,
+        "Média": 5
+      },
+      "Alta": {
+        "Alta": 63,
+        "Crítica": 15,
+        "Média": 4
+      },
+      "Média": {
+        "Alta": 37,
+        "Média": 25,
+        "Crítica": 2,
+        "Baixa": 2
+      },
+      "Baixa": {
+        "Média": 8,
+        "Baixa": 2
+      }
+    },
+    "risk": {
+      "Crítico": {
+        "Crítico": 312,
+        "Médio": 5,
+        "Alto": 14,
+        "Baixo": 1
+      },
+      "Alto": {
+        "Alto": 37,
+        "Crítico": 28,
+        "Médio": 12,
+        "Baixo": 4
+      },
+      "Médio": {
+        "Médio": 28,
+        "Crítico": 10,
+        "Alto": 39,
+        "Baixo": 2
+      },
+      "Baixo": {
+        "Baixo": 4,
+        "Médio": 4
+      }
+    }
+  },
+  "run_id": "0313a572-1a71-4a33-8608-4ab57100209a",
+  "config_hash": "ff54a1d68a77a8240e777a026e12ea5be8063131fbe2b44e0ca1aebc7cdf5e0c"
+}
